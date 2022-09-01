@@ -1,0 +1,180 @@
+// This source code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// Ã‚Â© Jayaprakash6
+
+//@version=5
+import Pritesh-StocksDeveloper/StocksDeveloper_AutoTraderWeb/6 as autotrader
+
+strategy("Stock_Developer_Strategy", shorttitle = "Stock_Developer_Strategy", overlay = true,max_labels_count=500)
+
+start_hr = input.int(defval = 11, title = "Hours", group = "TRADE ENTRY", inline = '1')
+
+start_min = input.int(defval = 00, title = "Min", group = "TRADE ENTRY", inline = '1')
+
+end_hr = input.int(defval = 15, title = "Hours", group = "TRADE SQUARE OFF", inline = '2')
+
+end_min = input.int(defval = 25, title = "Min", group = "TRADE SQUARE OFF", inline = '2')
+
+time1 = timestamp(year, month, dayofmonth, start_hr, start_min, second)
+
+endtime = timestamp(year, month, dayofmonth, end_hr, end_min, second)
+
+open_val = ta.valuewhen(time == time1, open, 0)
+
+var1 = input.int(defval = 30, title = "Adjust Level", group = "INPUT")
+
+tar_point = input.int(defval = 40, title = "Target(IN POINTS)", group = "INPUT")  
+
+sl_point = input.int(defval = 40, title = "StopLoss(IN POINTS)", group = "INPUT") 
+
+i_account = input.string(defval = "ACC_NAME", title = "Pseudo/Group Account", 
+     tooltip = "Your Pseudo or Group account name", confirm = true, 
+     group = "Account") 
+
+i_group = input.bool(defval = false, title = "Group Account", 
+     tooltip = "Set it to true if you are using a Group account", 
+     confirm = true, group = "Account") 
+
+i_exchange = input.string(defval = "NSE", title = "Exchange of Symbol", 
+     tooltip = "Exchange (Ex. NSE, BSE, MCX)", confirm=true, 
+     group = "Instrument")
+
+i_symbol = input.string(defval = "BANKNIFTY", title = "Underlier Symbol", 
+     tooltip = "Underlier symbol (Ex. NIFTY, CRUDEOIL, USDINR)", confirm=true, 
+     group = "Instrument")
+
+i_expiry = input.string(defval = "27-JAN-2022", title="Expiry (DD-MMM-YYYY)", 
+     tooltip = "Expiry date for the option contracts", confirm = true,
+     group = "Instrument")
+
+i_strike = input.int(defval = 0, title="STRIKE", 
+     tooltip = "STRIKE ENTER 0 FOR ATM + ITM - OTM", confirm = true,
+     group = "Instrument")
+
+i_gap = input.float(defval = 100.0, title = "Gap between option strikes", 
+     tooltip = "Example: BANKNIFTY option strikes have a gap of 100", 
+     confirm = true, group = "Instrument")
+
+i_product = input.string(defval = "INTRADAY", title = "Product Type", 
+     tooltip = "Order Type - INTRADAY, NORMAL, DELIVERY", options = ["INTRADAY", "NORMAL", "DELIVERY"], confirm=true, 
+     group = "Instrument")
+     
+i_exitProduct = input.string(defval = "MIS", title = "EXIT_Product Type", 
+     tooltip = "Order Type - MIS, CNC, NRML, BO, CO", options = ["MIS", "CNC", "NRML", "BO", "CO"], confirm=true, 
+     group = "Instrument")
+
+
+i_quantity = input.int(defval = 50, title = "QUANTITY", 
+     tooltip = "Example: NIFTY 50 QTY", 
+     confirm = true, group = "Instrument")
+ 
+entry_price =  strategy.opentrades.entry_price(strategy.opentrades - 1)
+Buy_Entry = open_val + var1
+
+Sell_Entry = open_val - var1
+
+strike_ce = (math.round(Buy_Entry/i_gap)* i_gap) - (i_strike * i_gap)
+
+strike_pe = (math.round(Sell_Entry/i_gap)* i_gap) + (i_strike * i_gap)
+
+//Comments
+message_ce = autotrader.preparePlaceOrderAlertMessage(account = i_account, symbol = i_symbol + '_' + i_expiry + '_CE_' + str.tostring(strike_ce), tradeType = "BUY", group = i_group, exchange = i_exchange, quantity = i_quantity, price = 0, orderType = "MARKET", productType = i_product)
+
+message_pe = autotrader.preparePlaceOrderAlertMessage(account = i_account, symbol = i_symbol + '_' + i_expiry + '_PE_' + str.tostring(strike_pe), tradeType = "BUY", group = i_group, exchange = i_exchange, quantity = i_quantity, price = 0, orderType = "MARKET", productType = i_product)
+var final_ce = 0.0
+var final_pe = 0.0
+if (time == time1)
+    strategy.entry(id = "CE ENTRY", direction = strategy.long, stop = Buy_Entry, alert_message = message_ce)
+
+    strategy.entry(id = "PE ENTRY", direction = strategy.short, stop = Sell_Entry, alert_message = message_pe)
+    final_ce := strike_ce
+    final_pe := strike_pe
+
+exitstrike_ce = (math.round(ta.valuewhen(strategy.position_size>0,close,0)/i_gap)* i_gap) - (i_strike * i_gap)
+
+exitstrike_pe = (math.round(ta.valuewhen(strategy.position_size<0,close,0)/i_gap)* i_gap) + (i_strike * i_gap)
+
+
+finalstrike_ce=ta.valuewhen(strategy.position_size>0 and strategy.position_size[1]==0, exitstrike_ce,0)
+finalstrike_pe=ta.valuewhen(strategy.position_size<0 and strategy.position_size[1]==0, exitstrike_pe,0)
+
+//label.new(bar_index,high,text=str.tostring(strike_pe)+"\n"+str.tostring(finalstrike_pe))
+// message_exit_ce = autotrader.prepareSqOffPositionAlertMessage(account = i_account, symbol = i_symbol + '_' + i_expiry + '_CE_' + str.tostring(finalstrike_ce), type = i_exitProduct, group = i_group, exchange = i_exchange, comments = "Square Off Request")
+
+// message_exit_pe = autotrader.prepareSqOffPositionAlertMessage(account = i_account, symbol = i_symbol + '_' + i_expiry + '_PE_' + str.tostring(finalstrike_pe), type = i_exitProduct, group = i_group, exchange = i_exchange, comments = "Square Off Request")
+message_exit_ce = autotrader.preparePlaceOrderAlertMessage(account = i_account, symbol = i_symbol + '_' + i_expiry + '_CE_' + str.tostring(final_ce), tradeType = "SELL", group = i_group, exchange = i_exchange, quantity = i_quantity, price = 0, orderType = "MARKET", productType = i_product)
+
+message_exit_pe = autotrader.preparePlaceOrderAlertMessage(account = i_account, symbol = i_symbol + '_' + i_expiry + '_PE_' + str.tostring(final_pe), tradeType = "SELL", group = i_group, exchange = i_exchange, quantity = i_quantity, price = 0, orderType = "MARKET", productType = i_product)
+
+plotshape(time == time1, "", location = location.belowbar, color=color.green, style = shape.arrowup, editable = false, size = size.huge)
+
+plotshape(time == time1, "", location = location.abovebar, color=color.red, style = shape.arrowdown, editable = false, size = size.huge)
+
+bgcolor(time==time1?color.yellow:na)
+
+if(time == endtime)
+
+    strategy.cancel_all()
+
+curProfitInPts() =>
+    if strategy.position_size > 0
+        (high - strategy.position_avg_price)
+    else if strategy.position_size < 0
+        (strategy.position_avg_price - low)
+    else
+        0
+        
+//Determine trail stop loss prices
+longStopPrice = 0.0, shortStopPrice = 0.0
+
+longStopPrice := if (strategy.position_size > 0)
+    stopValue = close - sl_point
+    math.max(stopValue, longStopPrice[1])
+else
+    0
+
+shortStopPrice := if (strategy.position_size < 0)
+    stopValue = close + sl_point
+    math.min(stopValue, shortStopPrice[1])
+else
+    999999
+
+bool1 = input.bool(defval = true, title = "Trailing Stoploss", group = "INPUT")
+
+// Plot stop loss values for confirmation
+plot(series=(strategy.position_size > 0) and bool1 ? longStopPrice : na,
+     color=color.green, style=plot.style_linebr,
+     linewidth=2, title="Long Trail Stop")
+plot(series=(strategy.position_size < 0) and bool1 ? shortStopPrice : na,
+     color=color.red, style=plot.style_linebr,
+     linewidth=2, title="Short Trail Stop")
+
+if(bool1)
+    
+    strategy.exit("EXIT CE", from_entry = "CE ENTRY", profit = tar_point/syminfo.mintick, stop = longStopPrice, alert_message = message_exit_ce)
+        
+    strategy.exit("EXIT PE", from_entry = "PE ENTRY", profit = tar_point/syminfo.mintick, stop = shortStopPrice, alert_message = message_exit_pe)
+    
+else
+
+    strategy.exit("EXIT CE", from_entry = "CE ENTRY", profit = tar_point/syminfo.mintick, loss=sl_point/syminfo.mintick, alert_message = message_exit_ce)
+    
+    strategy.exit("EXIT PE", from_entry = "PE ENTRY", profit = tar_point/syminfo.mintick, loss=sl_point/syminfo.mintick, alert_message = message_exit_pe)
+    
+line.new(ta.valuewhen(time == time1, bar_index, 0), open_val, ta.valuewhen(time == time1,  bar_index + 1, 0), open_val, extend = extend.right, color = color.black, style = line.style_dashed)
+
+plot(strategy.position_size > 0 ? entry_price : na, 'OPEN', bar_index % 2 == 0 ? #AA336A :  #00000000, linewidth = 3, editable = false, style = plot.style_linebr)
+
+plot(strategy.position_size > 0 and bool1==false ? entry_price - sl_point : na, 'SL', bar_index % 2 == 0 ? color.red :  #00000000, linewidth = 3, editable = false, style = plot.style_linebr)
+
+plot(strategy.position_size > 0 ? entry_price + tar_point : na, 'TP', bar_index % 2 == 0 ? color.green : #00000000, linewidth = 3, editable = false, style = plot.style_linebr)
+
+plot(strategy.position_size < 0 ? entry_price : na, 'OPEN', bar_index % 2 == 0 ? color.blue : #00000000, linewidth = 3, editable = false, style = plot.style_linebr)
+
+plot(strategy.position_size < 0 ? entry_price - tar_point : na, 'TP', bar_index % 2 == 0 ? color.green : #00000000, linewidth = 3, editable = false, style = plot.style_linebr)
+
+plot(strategy.position_size < 0 and bool1==false ? entry_price + sl_point : na, 'SL', bar_index % 2 == 0 ? color.red : #00000000, linewidth = 3, editable = false, style = plot.style_linebr)
+
+if(time==endtime)
+    strategy.close("CE ENTRY", when = time == endtime, alert_message = message_exit_ce)
+    
+    strategy.close("PE ENTRY", when = time == endtime, alert_message = message_exit_pe)
